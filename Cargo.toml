@@ -1,0 +1,13 @@
+[package]
+name = "kiz-auto-message"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+base64 = "0.22.1"
+cookie = "0.18.1"
+fantoccini = {git = "https://github.com/jonhoo/fantoccini"}
+serde = "1.0.217"
+serde_json = "*"
+tokio = { version = "1", features = ["full"] }
+zip = "2.2.2"
