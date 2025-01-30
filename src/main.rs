@@ -43,7 +43,7 @@ impl WillhabenAd {
     }
 }
 
-async fn send_notification(dispatcher: Dispatcher<Async>, ad: &WillhabenAd, username: &str) {
+async fn send_notification(dispatcher: &Dispatcher<Async>, ad: &WillhabenAd, username: &str) {
     let payload = Payload::new("kiz-tickets")
         .message(format!(
             "Name: {}\nTitle: {}\nPrice: {}",
@@ -106,7 +106,7 @@ async fn run_scraper() -> Result<(), CmdError> {
                     &ad.title, &ad.price
                 );
                 let name = message_ad(&client, &ad.location).await?;
-                send_notification(dispatcher, ad, &name).await;
+                send_notification(&dispatcher, ad, &name).await;
                 println!("Messaged {}", name);
             }
         }
