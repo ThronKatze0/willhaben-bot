@@ -1,3 +1,4 @@
+use ntfy::prelude::*;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::{fs, os::unix::raw};
@@ -11,7 +12,6 @@ use tokio::time;
 
 const DOMAIN: &str = "www.willhaben.at";
 const URL: &str = "https://willhaben.at/iad/kaufen-und-verkaufen/marktplatz?isNavigation=true&srcType=vertical-search-box&keyword=KIZ%20konzert%20wien";
-const MESSAGE: &str = "";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RawCookie {
@@ -54,25 +54,23 @@ async fn main() -> Result<(), fantoccini::error::CmdError> {
     login(&c, "cookies.json").await?;
 
     let mut willhaben_ads = get_ads(&c).await?;
-    let mut count = 0;
     loop {
         println!("Scanning...");
         c.goto(URL).await?;
-        time::sleep(Duration::from_secs(2)).await;
+        time::sleep(Duration::from_secs(6)).await;
         let curr_ads = get_ads(&c).await?;
-        if count == 1 {
-            willhaben_ads = HashMap::new();
-        }
         for ad in curr_ads.iter().map(|(_, ad)| ad) {
             if !willhaben_ads.contains_key(&ad.title) {
-                println!("New Ad found!!! Messaging...");
+                println!(
+                    "New Ad found!!! Title: {}, Price: {}, Messaging...",
+                    &ad.title, &ad.price
+                );
                 let name = message_ad(&c, &ad.location).await?;
                 println!("Messaged {}", name);
             }
         }
         willhaben_ads = curr_ads;
-        count += 1;
-        time::sleep(Duration::from_secs(10)).await;
+        time::sleep(Duration::from_secs(12)).await;
     }
 }
 
@@ -97,7 +95,7 @@ async fn login(c: &Client, cookie_file: &str) -> Result<(), fantoccini::error::C
         c.add_cookie(cookie).await?;
     }
     c.goto(URL).await?;
-    time::sleep(Duration::from_secs(1)).await;
+    time::sleep(Duration::from_secs(2)).await;
     Ok(())
 }
 
@@ -139,7 +137,7 @@ async fn get_ads(c: &Client) -> Result<HashMap<String, WillhabenAd>, fantoccini:
 
 async fn message_ad(c: &Client, location: &str) -> Result<String, fantoccini::error::CmdError> {
     c.goto(&format!("https://{}{}", DOMAIN, location)).await?;
-    time::sleep(Duration::from_secs(1)).await;
+    time::sleep(Duration::from_secs(2)).await;
     let name = c
         .find(Locator::Css(
             ".jYVNrL > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > span:nth-child(1)",
@@ -147,7 +145,7 @@ async fn message_ad(c: &Client, location: &str) -> Result<String, fantoccini::er
         .await?
         .text()
         .await?;
-    time::sleep(Duration::from_secs(5)).await;
+    time::sleep(Duration::from_secs(7)).await;
     c.find(Locator::Id("mailContent"))
         .await?
         .send_keys(&format!(
@@ -155,8 +153,8 @@ async fn message_ad(c: &Client, location: &str) -> Result<String, fantoccini::er
             name
         ))
         .await?;
-    time::sleep(Duration::from_secs(1)).await;
-    // c.find(Locator::Css(".GSQoz")).await?.click().await?;
-    time::sleep(Duration::from_secs(1)).await;
+    time::sleep(Duration::from_secs(2)).await;
+    c.find(Locator::Css(".GSQoz")).await?.click().await?;
+    time::sleep(Duration::from_secs(2)).await;
     return Ok(name);
 }
