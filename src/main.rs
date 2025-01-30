@@ -43,6 +43,17 @@ impl WillhabenAd {
     }
 }
 
+async fn send_notification(dispatcher: Dispatcher<Async>, ad: &WillhabenAd, username: &str) {
+    let payload = Payload::new("kiz-tickets")
+        .message(format!(
+            "Name: {}\nTitle: {}\nPrice: {}",
+            username, ad.title, ad.price
+        ))
+        .title("KIZZZZ TICKETS!!")
+        .priority(Priority::High);
+    dispatcher.send(&payload).await;
+}
+
 #[tokio::main]
 async fn main() {
     loop {
@@ -51,12 +62,15 @@ async fn main() {
             Err(e) => eprintln!("Error occurred: {:?}. Restarting...", e),
         }
 
-        // Wait before retrying to avoid rapid failure loops
         time::sleep(Duration::from_secs(5)).await;
     }
 }
 
 async fn run_scraper() -> Result<(), CmdError> {
+    let dispatcher = dispatcher::builder("https://ntfy.sh")
+        .build_async()
+        .unwrap();
+
     let client = loop {
         match ClientBuilder::native()
             .connect("http://localhost:4444")
@@ -74,6 +88,7 @@ async fn run_scraper() -> Result<(), CmdError> {
     time::sleep(Duration::from_secs(2)).await;
     login(&client, "cookies.json").await?;
 
+    let mut idx = 0;
     let mut willhaben_ads = get_ads(&client).await?;
     loop {
         println!("Scanning...");
@@ -81,6 +96,9 @@ async fn run_scraper() -> Result<(), CmdError> {
         time::sleep(Duration::from_secs(2)).await;
 
         let curr_ads = get_ads(&client).await?;
+        if (idx == 2) {
+            willhaben_ads = HashMap::new()
+        };
         for ad in curr_ads.values() {
             if !willhaben_ads.contains_key(&ad.title) {
                 println!(
@@ -88,6 +106,7 @@ async fn run_scraper() -> Result<(), CmdError> {
                     &ad.title, &ad.price
                 );
                 let name = message_ad(&client, &ad.location).await?;
+                send_notification(dispatcher, ad, &name).await;
                 println!("Messaged {}", name);
             }
         }
@@ -176,7 +195,7 @@ async fn message_ad(c: &Client, location: &str) -> Result<String, fantoccini::er
         ))
         .await?;
     time::sleep(Duration::from_secs(1)).await;
-    c.find(Locator::Css(".GSQoz")).await?.click().await?;
+    // c.find(Locator::Css(".GSQoz")).await?.click().await?;
     time::sleep(Duration::from_secs(1)).await;
     return Ok(name);
 }
