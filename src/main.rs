@@ -1,3 +1,4 @@
+use fantoccini::error::CmdError;
 use ntfy::prelude::*;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -43,34 +44,55 @@ impl WillhabenAd {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), fantoccini::error::CmdError> {
-    let c = ClientBuilder::native()
-        .connect("http://localhost:4444")
-        .await
-        .expect("failed to connect to WebDriver");
+async fn main() {
+    loop {
+        match run_scraper().await {
+            Ok(_) => println!("Scraper exited normally."),
+            Err(e) => eprintln!("Error occurred: {:?}. Restarting...", e),
+        }
 
-    c.goto(URL).await?;
+        // Wait before retrying to avoid rapid failure loops
+        time::sleep(Duration::from_secs(5)).await;
+    }
+}
+
+async fn run_scraper() -> Result<(), CmdError> {
+    let client = loop {
+        match ClientBuilder::native()
+            .connect("http://localhost:4444")
+            .await
+        {
+            Ok(c) => break c,
+            Err(e) => {
+                eprintln!("Failed to connect to WebDriver: {:?}. Retrying in 5s...", e);
+                time::sleep(Duration::from_secs(5)).await;
+            }
+        }
+    };
+
+    client.goto(URL).await?;
     time::sleep(Duration::from_secs(2)).await;
-    login(&c, "cookies.json").await?;
+    login(&client, "cookies.json").await?;
 
-    let mut willhaben_ads = get_ads(&c).await?;
+    let mut willhaben_ads = get_ads(&client).await?;
     loop {
         println!("Scanning...");
-        c.goto(URL).await?;
-        time::sleep(Duration::from_secs(6)).await;
-        let curr_ads = get_ads(&c).await?;
-        for ad in curr_ads.iter().map(|(_, ad)| ad) {
+        client.goto(URL).await?;
+        time::sleep(Duration::from_secs(2)).await;
+
+        let curr_ads = get_ads(&client).await?;
+        for ad in curr_ads.values() {
             if !willhaben_ads.contains_key(&ad.title) {
                 println!(
                     "New Ad found!!! Title: {}, Price: {}, Messaging...",
                     &ad.title, &ad.price
                 );
-                let name = message_ad(&c, &ad.location).await?;
+                let name = message_ad(&client, &ad.location).await?;
                 println!("Messaged {}", name);
             }
         }
         willhaben_ads = curr_ads;
-        time::sleep(Duration::from_secs(12)).await;
+        time::sleep(Duration::from_secs(5)).await;
     }
 }
 
@@ -145,7 +167,7 @@ async fn message_ad(c: &Client, location: &str) -> Result<String, fantoccini::er
         .await?
         .text()
         .await?;
-    time::sleep(Duration::from_secs(7)).await;
+    time::sleep(Duration::from_secs(1)).await;
     c.find(Locator::Id("mailContent"))
         .await?
         .send_keys(&format!(
@@ -153,8 +175,8 @@ async fn message_ad(c: &Client, location: &str) -> Result<String, fantoccini::er
             name
         ))
         .await?;
-    time::sleep(Duration::from_secs(2)).await;
+    time::sleep(Duration::from_secs(1)).await;
     c.find(Locator::Css(".GSQoz")).await?.click().await?;
-    time::sleep(Duration::from_secs(2)).await;
+    time::sleep(Duration::from_secs(1)).await;
     return Ok(name);
 }
