@@ -97,7 +97,7 @@ async fn run_scraper() -> Result<(), CmdError> {
 
         let curr_ads = get_ads(&client).await?;
         if (idx == 2) {
-            willhaben_ads = HashMap::new()
+            willhaben_ads = HashMap::new();
         };
         for ad in curr_ads.values() {
             if !willhaben_ads.contains_key(&ad.title) {
@@ -112,6 +112,7 @@ async fn run_scraper() -> Result<(), CmdError> {
         }
         willhaben_ads = curr_ads;
         time::sleep(Duration::from_secs(5)).await;
+        idx += 1;
     }
 }
 
