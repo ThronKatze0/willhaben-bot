@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use tokio::time;
 
 const DOMAIN: &str = "www.willhaben.at";
-const URL: &str = "https://willhaben.at/iad/kaufen-und-verkaufen/marktplatz?isNavigation=true&srcType=vertical-search-box&keyword=KIZ%20konzert%20wien";
+const URL: &str = "https://www.willhaben.at/iad/kaufen-und-verkaufen/marktplatz?isNavigation=true&srcType=vertical-search-box&keyword=kiz%20tickets";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RawCookie {
@@ -51,26 +51,32 @@ async fn send_notification(dispatcher: &Dispatcher<Async>, ad: &WillhabenAd, use
         ))
         .title("KIZZZZ TICKETS!!")
         .priority(Priority::High);
-    dispatcher.send(&payload).await;
+    let _ = dispatcher.send(&payload).await;
 }
 
 #[tokio::main]
 async fn main() {
+    let dispatcher = dispatcher::builder("https://ntfy.sh")
+        .build_async()
+        .unwrap();
+
     loop {
-        match run_scraper().await {
+        match run_scraper(&dispatcher).await {
             Ok(_) => println!("Scraper exited normally."),
             Err(e) => eprintln!("Error occurred: {:?}. Restarting...", e),
         }
+
+        let payload = Payload::new("kiz-tickets")
+            .message("Die Schatzkammer leert sich")
+            .title("Yo olta volle wesch error grode et")
+            .priority(Priority::High);
+        let _ = dispatcher.send(&payload).await;
 
         time::sleep(Duration::from_secs(5)).await;
     }
 }
 
-async fn run_scraper() -> Result<(), CmdError> {
-    let dispatcher = dispatcher::builder("https://ntfy.sh")
-        .build_async()
-        .unwrap();
-
+async fn run_scraper(dispatcher: &Dispatcher<Async>) -> Result<(), CmdError> {
     let client = loop {
         match ClientBuilder::native()
             .connect("http://localhost:4444")
@@ -88,16 +94,21 @@ async fn run_scraper() -> Result<(), CmdError> {
     time::sleep(Duration::from_secs(2)).await;
     login(&client, "cookies.json").await?;
 
-    let mut idx = 0;
+    let mut idx = 600;
     let mut willhaben_ads = get_ads(&client).await?;
     loop {
         println!("Scanning...");
         client.goto(URL).await?;
-        time::sleep(Duration::from_secs(2)).await;
+        time::sleep(Duration::from_secs(4)).await;
 
         let curr_ads = get_ads(&client).await?;
-        if (idx == 2) {
-            willhaben_ads = HashMap::new();
+        if (idx == 600) {
+            let payload = Payload::new("kiz-tickets")
+                .message("Die Leute verlassen die Burg")
+                .title("MMMMMMMM")
+                .priority(Priority::High);
+            let _ = dispatcher.send(&payload).await;
+            idx = 0;
         };
         for ad in curr_ads.values() {
             if !willhaben_ads.contains_key(&ad.title) {
@@ -196,7 +207,7 @@ async fn message_ad(c: &Client, location: &str) -> Result<String, fantoccini::er
         ))
         .await?;
     time::sleep(Duration::from_secs(1)).await;
-    // c.find(Locator::Css(".GSQoz")).await?.click().await?;
+    c.find(Locator::Css(".GSQoz")).await?.click().await?;
     time::sleep(Duration::from_secs(1)).await;
     return Ok(name);
 }
